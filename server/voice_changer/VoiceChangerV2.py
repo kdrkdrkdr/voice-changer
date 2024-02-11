@@ -94,6 +94,8 @@ class VoiceChangerV2(VoiceChangerIF):
         self.onnx_device = onnxruntime.get_device()
         self.noCrossFade = False
 
+        self.audio_segments = []
+
         logger.info(f"VoiceChangerV2 Initialized (GPU_NUM(cuda):{self.gpu_num}, mps_enabled:{self.mps_enabled}, onnx_device:{self.onnx_device})")
 
     def setModel(self, model: VoiceChangerModel):
@@ -213,10 +215,18 @@ class VoiceChangerV2(VoiceChangerIF):
 
     #  receivedData: tuple of short
     def on_request(self, receivedData: AudioInOut) -> tuple[AudioInOut, list[Union[int, float]]]:
-        try:
+        try:    
             if self.voiceChanger is None:
                 raise VoiceChangerIsNotSelectedException("Voice Changer is not selected.")
 
+            self.audio_segments.append(receivedData)
+            # print(self.audio_segments)
+            if len(self.audio_segments) == 10:
+                receivedData = np.concatenate(self.audio_segments)
+                self.audio_segments = []
+            else:
+                return np.zeros(0).astype(np.int16), [0, 0, 0]
+            
             with Timer2("main-process", False) as t:
                 processing_sampling_rate = self.voiceChanger.get_processing_sampling_rate()
 
